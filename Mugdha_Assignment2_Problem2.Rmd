@@ -1,0 +1,529 @@
+---
+title: "FE 582 Assignment Problem2"
+author: "Mugdha"
+date: "10/17/2020"
+output: pdf_document
+---
+
+## Problem 2 
+**The data provided in the files contains several quantitative and categorical variables associatewith each ticker. Please select a subset of 100 tickers from each file and use data for a specific year (ex: 2013). Use a small number of quantitative variables (10 or 12) out of ~76 columns available (example: After Tax ROE, Cash Ratio, Current Ratio, Operating Margin, Pre-Tax Margin, Pre-Tax ROE, Profit Margin, Quick Ratio, Total Assets, Total Liabilities, Earnings Per Share, etc…).The categorical variables available are GICS Sector, GICS Sub Industry, and possibly HQ Address (although this is sparse data for the 100 tickers subset selected).Next, you have to apply several distance and similarity functions to find the extreme values for distance and similarities between the subset of tickers that you chose. For each of the following cases, please define the function that allows you to calculate the quantity required, calculate the values for all ticker pairs, and rank the pairs by calculated value of distance or similarity, and report the top and bottom 10 values for each case:**  
+
+**\textcolor{red}{Solution:}**  
+
+```{r}
+tickers<- read.csv("securities.csv")
+fundamentals<- read.csv("fundamentals.csv")
+#Taking only 2 categories from securities
+tickers$GICS.Sector<- as.numeric(as.factor(tickers$GICS.Sector))
+tickers$GICS.Sub.Industry<- as.numeric(as.factor(tickers$GICS.Sub.Industry))
+
+#Data frame of ticker and 2 categories : GICS Sector and GICS Sub Industry
+tickersfinal<-data.frame(tickers$Ticker.symbol,tickers$GICS.Sector,tickers$GICS.Sub.Industry)
+names(tickersfinal)<-c("Ticker.symbol","GICS.Sector",
+                       "GICS.Sub.Industry")
+
+#Selecting year 2012
+Dataset<- subset(fundamentals,format(as.Date(fundamentals$Period.Ending),"%Y")==2012)
+
+#Creating a data frame of 9 quantitative features from fundamentals:Ticker symbol,Cash Ratio,Current Ratio,After.Tax.ROE,Gross.Margin,Profit.Margin,Pre.Tax.ROE,Total.Assets,Total.Liabilities
+FDataset<- data.frame(Dataset$Ticker.Symbol,Dataset$Cash.Ratio,Dataset$Current.Ratio,Dataset$After.Tax.ROE,Dataset$Gross.Margin,Dataset$Profit.Margin,Dataset$Pre.Tax.ROE,Dataset$Total.Assets,Dataset$Total.Liabilities)
+                      
+#Taking subset of 100 from data of 2012 year
+Finaldataset<- head(FDataset,100)
+
+names(Finaldataset)<- c("Ticker.symbol","Cash.Ratio","Current.Ratio","After.Tax.ROE","Gross.Margin","Profit.Margin","Pre.Tax.ROE","Total.Assets","Total.Liabilities")
+
+#Merging data set of both quantitative and categorical data (11 features)to form a Final Data which I will be working on for all the problems: 
+Finaldata<-merge(Finaldataset,tickersfinal,by="Ticker.symbol",all.x=TRUE)
+
+#Removing NA values from dataset
+Finaldata<- na.omit(Finaldata)
+
+```
+**a,b,c,d)Calculating Lp norms for p=1,2,3,10**
+
+**\textcolor{red}{Solution:}**  
+```{r}
+lpnorm <- function(feature_data,rownum,p)
+{
+  #Selecting only 1 to 7 features for now as they are quantitative and 10 and 11 are categorical.Not taking 8 and 9 quantitative features as they are large 
+  feature_data<- feature_data[1:7]
+  ldist =c()
+  for(j in 1:nrow(feature_data))
+  {
+    result<-(sum(abs(feature_data[rownum,2:7]-
+            feature_data[j,2:7])^p))^(1/p)
+    templ1dist = c(feature_data[rownum,1],feature_data[j,1],result)
+    ldist<-append(ldist, templ1dist)
+  }
+  #Output in the form of Ticker1, Ticker 2 and Distance
+  matrix1 <- matrix(ldist, ncol=3, byrow=TRUE)
+  df <- as.data.frame(matrix1, stringsAsFactors=FALSE)
+  df <- na.omit(df)
+  df$V3 <- as.numeric(as.character(df$V3))
+  dfSorted <-df[order(-df$V3),]
+  names(dfSorted)<- c("Ticker1","Ticker2","Distance")
+  #Top 10 
+  print(head(dfSorted, 10))
+  #Bottom 10
+  print(tail(dfSorted, 10))
+}
+#Distance of ticker 1 (Row=1) with other tickers, p=1
+lpnorm(Finaldata,1,1)
+#Row=1 ,p=2
+lpnorm(Finaldata,1,2)
+#Row=1 ,p=3
+lpnorm(Finaldata,1,3)
+#Row=1 ,p=10
+lpnorm(Finaldata,1,10)
+```
+**e)Minkovski distance (assign different weights for the feature components in the Lp-norm based on your assessment on the importance of the features)**
+
+**\textcolor{red}{Solution:}**  
+```{r}
+minkovskiDist <- function(feature_data,rownum,p)
+{
+  #Selecting only 1 to 9 features as they are quantitative    and 10 and 11 are categorical
+  feature_data<- feature_data[1:9]
+  l1dist =c()
+  for(j in 1:nrow(feature_data))
+  {
+    
+    result<-(sum(abs(feature_data[rownum,2:7]-feature_data[j,2:7])^p))
+    
+    #Assigning weight to Assets and Liabilities features
+    resultTotalAssetLiab<-(sum((1/1000000000) * (abs(feature_data[rownum,8:9]-feature_data[j,8:9])^p)))
+    finalResult<-(sum(result, resultTotalAssetLiab))^(1/p)
+    
+    templ1dist = c(feature_data[rownum,1], feature_data[j,1], finalResult)
+    l1dist<-append(l1dist, templ1dist)
+  }
+  #Output in the form of Ticker1, Ticker 2 and Distance
+  m1 <- matrix(l1dist, ncol=3, byrow=TRUE)
+  df <- as.data.frame(m1, stringsAsFactors=FALSE)
+  #print(df)
+  df <- na.omit(df)
+  df$V3 <- as.numeric(as.character(df$V3))
+  dfSorted <-df[order(-df$V3),]
+  #print(dfSorted)
+  names(dfSorted)<- c("Ticker1","Ticker2","Distance")
+  print(head(dfSorted, 10))
+  print(tail(dfSorted, 10))
+}
+#Minkovski distance for row=1(First row) with other tickers
+minkovskiDist(Finaldata,1,1)
+```
+**Assets and Liabilities in the data set had values in billions which resulted in large distances. Hence assigned weights to these features**
+
+**f)Match-Based Similarity Computation**
+
+**\textcolor{red}{Solution:}**  
+```{r}
+matchSim <- function(feature_data,rownum,p)
+{
+  #Selecting 1 to 9 as those are the 9 quantitative features of the data
+  feature_data<- feature_data[1:9]
+  matchdist =c()
+  for(j in 1:nrow(feature_data))
+  {
+    tempMatchDist = c()
+    for(k in 2:ncol(feature_data)) {
+      max = max(feature_data[,k])
+      min = min(feature_data[,k])
+     
+  # calculate the bucket ranges using bucket size as 3
+     bucketRange = round(((max-min)/3),0)
+  # create buckets
+     feature_data$buck= cut(feature_data[,k],c(min,bucketRange,bucketRange*2,max),
+                  labels=c("Bucket1","Bucket2","Bucket3"),
+                  include.lowest = TRUE)
+  # check if the feature belongs to same bucket
+      if(feature_data[rownum,10] == feature_data[j,10]){
+        # find min and max of the bucket
+        minBuck=c()
+        maxBuck=c()
+        if(feature_data[rownum,10] == "Bucket1") {
+          minBuck = min  
+          maxBuck = bucketRange
+        } else if(feature_data[rownum,10] == "Bucket2") {
+          minBuck = bucketRange+1  
+          maxBuck = bucketRange*2
+        } else {
+          minBuck = bucketRange*2+1 
+          maxBuck = max
+        }
+        # compute the expression
+        result = (1-abs(feature_data[rownum,k]-feature_data[j,k])/(maxBuck-minBuck))^p
+        
+        # add to tempMatchDist
+        tempMatchDist = append(tempMatchDist,result)
+      }
+      # removing temporary bucket column
+      feature_data$buck <- NULL
+    }
+    # add tickers and tempMatchDist to matchDist
+    finalResult = c(feature_data[rownum,1], feature_data[j,1], sum(tempMatchDist)^(1/p))
+    matchdist = append(matchdist, finalResult)
+  }
+  # sorting and printing
+   #Output in the form of Ticker1, Ticker 2 and Distance
+  m1 <- matrix(matchdist, ncol=3, byrow=TRUE)
+  df <- as.data.frame(m1, stringsAsFactors=FALSE)
+  df <- na.omit(df)
+  df$V3 <- as.numeric(as.character(df$V3))
+  dfSorted <-df[order(-df$V3),]
+  names(dfSorted)<- c("Ticker1","Ticker2","Match Based Similarity")
+  #Top 10
+  print(head(dfSorted, 10))
+  #Bottom 10
+  print(tail(dfSorted, 10))
+}
+#Match based similarity for row=1 (First row) and p=2 with other tickers
+matchSim(Finaldata,1,2)
+```
+
+**g)Mahalanobis distance**
+
+**\textcolor{red}{Solution:}**  
+```{r}
+mahalanoDist <- function(feature_data,rownum){
+  mahaDist <- c()
+  for(j in 1:nrow(feature_data)){
+    feature_data<- na.omit(feature_data)
+    #Calculating Covariance of Feature Data
+    #Selecting only first 7 quantitative features 
+    CovMat <- cov(feature_data[2:7])
+    matrix_S <-as.matrix(feature_data[rownum,2:7]-
+                         feature_data[j,2:7])[1,]     
+    vector1<-(as.vector(matrix_S))
+    #Calculating the expression
+    dmahal <- vector1 %*% solve(as.matrix(CovMat)) 
+    finalmaha <- dmahal * t(matrix_S) 
+    mahafinal<-(sum(finalmaha))
+   tempmahafinal<-c(feature_data[rownum,1], feature_data[j,1], mahafinal)
+    mahaDist <- append(mahaDist,tempmahafinal)
+  }
+  #Output in the form of Ticker1, Ticker 2 and Distance
+  m1 <- matrix(mahaDist, ncol=3, byrow=TRUE)
+  df <- as.data.frame(m1, stringsAsFactors=FALSE)
+  df <- na.omit(df)
+  df$V3 <- as.numeric(as.character(df$V3))
+  dfSorted <-df[order(-df$V3),]
+  names(dfSorted)<- c("Ticker1","Ticker2","Distance")
+  #Top 10
+  print(head(dfSorted, 10))
+  #Bottom 10
+  print(tail(dfSorted, 10))
+
+}
+#Mahalanolobis Distance for row=1 (First row) with other tickers
+mahalanoDist(Finaldata,1)
+
+```
+**h)Similarity: overlap measure**
+
+**\textcolor{red}{Solution:}**  
+```{r}
+olap<- function(feature_data,rownum)
+{
+  #Taking categorical features Sector and Sub sector from the data set
+  feature_data<- feature_data[c(1,10:11)]
+  feature_data<- na.omit(feature_data)
+  opdist <- c()
+  for(j in 1:nrow(feature_data))
+  {
+    result = c()
+    #Checking if same category for both the features
+    if(feature_data[rownum,2]==feature_data[j,2])
+    {
+       result = append(result,1)
+    }
+    if(feature_data[rownum,3]==feature_data[j,3])
+    {
+       result = append(result,1)  
+    }
+    tempOpDist =  c(feature_data[rownum,1],feature_data[j,1],sum(result))  
+    opdist<- append(opdist, tempOpDist)
+  }
+   #Output in the form of Ticker1, Ticker 2 and Overlap
+  m1 <- matrix(opdist, ncol=3, byrow=TRUE)
+  df <- as.data.frame(m1, stringsAsFactors=FALSE)
+  df <- na.omit(df)
+  df$V3 <- as.numeric(as.character(df$V3))
+  dfSorted <-df[order(-df$V3),]
+  names(dfSorted)<- c("Ticker1","Ticker2","Overlap Measure")
+  #Top 10
+  print(head(dfSorted, 10))
+  #Bottom 10
+  print(tail(dfSorted, 10))
+}
+
+#Overlap measure for row=7 with other tickers
+olap(Finaldata,7)
+```
+**i)Similarity: inverse frequency**
+
+**\textcolor{red}{Solution:}**  
+```{r}
+invf<- function(feature_data,rownum)
+{   #Taking categorical features Sector and Sub sector from     the data set
+  feature_data<- feature_data[c(1,10:11)]
+  iofDist <- c()
+  for(j in 1:nrow(feature_data))
+  {
+    result = c()
+    #Checking if same category
+    if(feature_data[rownum,2]==feature_data[j,2])
+    {
+    #Calculating the fraction of records for same category feature
+      fractionDF = feature_data[feature_data$GICS.Sector == feature_data[rownum,2],]
+      p = length(fractionDF$GICS.Sector) / 100
+      # Calculating the expression
+      result = append(result,(1/p)^2)
+    }
+    if(feature_data[rownum,3]==feature_data[j,3])
+    {
+    #Calculating the fraction of records for same categoryfeature
+      fractionDF = feature_data[feature_data$GICS.Sector == feature_data[rownum,3],]
+      p = length(fractionDF$GICS.Sector) / 100
+       # Calculating the expression
+      result = append(result,(1/p)^2)
+    }
+    tempIofDist = c(feature_data[rownum,1],feature_data[j,1],sum(result))  
+    iofDist<- append(iofDist, tempIofDist)
+  }
+   #Output in the form of Ticker1, Ticker 2 and Similarity
+  m1 <- matrix(iofDist, ncol=3, byrow=TRUE)
+  df <- as.data.frame(m1, stringsAsFactors=FALSE)
+  df <- na.omit(df)
+  df$V3 <- as.numeric(as.character(df$V3))
+  dfSorted <-df[order(-df$V3),]
+  names(dfSorted)<- c("Ticker1","Ticker2","Similarity")
+  #Top 10
+  print(head(dfSorted, 10))
+  #Bottom 10
+  print(tail(dfSorted, 10))
+}
+#Inverse occurrence frequency for row=1 (First row) with other tickers
+invf(Finaldata,1)
+```
+**j)Similarity: Goodall**
+
+**\textcolor{red}{Solution:}**  
+```{r}
+gooDallSim<- function(feature_data,rownum)
+{ 
+  feature_data<- feature_data[c(1,10:11)]
+  iofDist <- c()
+  for(j in 1:nrow(feature_data))
+  {
+    result = c()
+    if(feature_data[rownum,2]==feature_data[j,2])
+    {
+      fractionDF = feature_data[feature_data$GICS.Sector == feature_data[rownum,2],]
+    #Calculating the fraction of records for same category feature
+      p = length(fractionDF$GICS.Sector) / 100
+       # Calculating the expression
+      result = append(result,(1-p^2))
+    }
+    if(feature_data[rownum,3]==feature_data[j,3])
+    {
+      fractionDF = feature_data[feature_data$GICS.Sector == feature_data[rownum,3],]
+    #Calculating the fraction of records for same category feature
+      p = length(fractionDF$GICS.Sector) / 100
+        #Calculating the expression
+      result = append(result,(1-p^2))
+    }
+    tempIofDist = c(feature_data[rownum,1],feature_data[j,1],sum(result))  
+    iofDist<- append(iofDist, tempIofDist)
+
+  }
+  #Output in the form of Ticker1, Ticker 2 and Similarity
+  m1 <- matrix(iofDist, ncol=3, byrow=TRUE)
+  df <- as.data.frame(m1, stringsAsFactors=FALSE)
+  df <- na.omit(df)
+  df$V3 <- as.numeric(as.character(df$V3))
+  dfSorted <-df[order(-df$V3),]
+  names(dfSorted)<- c("Ticker1","Ticker2","Similarity")
+  #Top 10
+  print(head(dfSorted, 10))
+  #Bottom 10
+  print(tail(dfSorted, 10))
+}
+
+#Goodall Measure for row=1 (First row) with other tickers
+gooDallSim(Finaldata,2)
+
+```
+**k)Overall similarity between tickers by using mixed type data (choose a lambda value for calculation)**
+
+**\textcolor{red}{Solution:}**  
+
+```{r}
+overallsim <- function(feature_data,rownum,p,lmda)
+{
+  #calculating match based similarity for NumSim
+  overallSimilarities = c()
+  for(j in 1:nrow(feature_data))
+  {
+    tempMatchDist = c()
+    #Taking columns 2 to 9 as they are quantitative features
+    for(k in 2:(ncol(feature_data)-2)) {
+      max = max(feature_data[,k])
+      min = min(feature_data[,k])
+      # calculate the bucket ranges
+      bucketRange = round(((max-min)/3),0)
+      # create buckets
+      feature_data$buck= cut(feature_data[,k], c(min,bucketRange,bucketRange*2,max),
+                             labels = c("Bucket1","Bucket2","Bucket3"),
+                             include.lowest = TRUE)
+
+      # check if features belongs to same bucket
+      if(feature_data[rownum,12] == feature_data[j,12]){
+        # find min and max of the bucket
+        minBuck=c()
+        maxBuck=c()
+        if(feature_data[rownum,12] == "Bucket1") {
+          minBuck = min
+          maxBuck = bucketRange
+        } else if(feature_data[rownum,12] == "Bucket2") {
+          minBuck = bucketRange+1
+          maxBuck = bucketRange*2
+        } else {
+          minBuck = bucketRange*2+1
+          maxBuck = max
+        }
+        # compute the expression
+        result = (1-abs(feature_data[rownum,k]-feature_data[j,k])/(maxBuck-minBuck))^p
+
+        # add to tempMatchDist
+        tempMatchDist = append(tempMatchDist,result)
+      }
+      # removing temporary bucket column
+      feature_data$buck <- NULL
+    }
+     # compute the expression
+    numSim = sum(tempMatchDist)^(1/p) * lmda
+
+    # Calculate CatSim using overlap measure
+    opdist <- c()
+    #Taking features 10 and 11 as they are categorical features
+    if(feature_data[rownum,10]==feature_data[j,10])
+    {
+      opdist = append(opdist,1)
+    }
+    if(feature_data[rownum,11]==feature_data[j,11])
+    {
+      opdist = append(opdist,1) 
+    }
+     # compute the expression
+    catSim <- sum(opdist) * (1-lmda)
+    
+    overallSimilarity = c(feature_data[rownum,1], feature_data[j,1], sum(numSim,catSim))
+    overallSimilarities = append(overallSimilarities, overallSimilarity)
+  }
+  # sorting and printing
+   #Output in the form of Ticker1, Ticker 2 and Similarity
+  m1 <- matrix(overallSimilarities, ncol=3, byrow=TRUE)
+  df <- as.data.frame(m1, stringsAsFactors=FALSE)
+  df <- na.omit(df)
+  df$V3 <- as.numeric(as.character(df$V3))
+  dfSorted <-df[order(-df$V3),]
+  names(dfSorted)<- c("Ticker1","Ticker2","Similarity")
+  #Top 10
+  print(head(dfSorted, 10))
+  #Bottom 10
+  print(tail(dfSorted, 10))
+}
+#Calculating overall similarity by taking row=1, p=2 and lambda value as 0.25
+overallsim(Finaldata,1,2,0.25)
+
+```
+**l)Overall normalized similarity between tickers by using mixed type data (choose a lambda value for calculation)**
+
+
+**\textcolor{red}{Solution:}**  
+```{r}
+overallSimNormalized <- function(feature_data,rownum,p,lmda)
+{
+  #calculating match based similarity for NumSim
+  overallSimilarities = c()
+  for(j in 1:nrow(feature_data))
+  {
+    tempMatchDist = c()
+    for(k in 2:(ncol(feature_data)-2)) {
+      max = max(feature_data[,k])
+      min = min(feature_data[,k])
+      # calculate the bucket ranges
+      bucketRange = round(((max-min)/3),0)
+      # create buckets
+      feature_data$buck= cut(feature_data[,k], c(min,bucketRange,bucketRange*2,max),
+                             labels = c("Bucket1","Bucket2","Bucket3"),
+                             include.lowest = TRUE)
+      
+      # check if features belongs to same bucket
+      if(feature_data[rownum,12] == feature_data[j,12]){
+        # find min and max of the bucket
+        minBuck=c()
+        maxBuck=c()
+        if(feature_data[rownum,12] == "Bucket1") {
+          minBuck = min
+          maxBuck = bucketRange
+        } else if(feature_data[rownum,12] == "Bucket2") {
+          minBuck = bucketRange+1
+          maxBuck = bucketRange*2
+        } else {
+          minBuck = bucketRange*2+1
+          maxBuck = max
+        }
+        # compute the expression
+        result = (1-abs(feature_data[rownum,k]-feature_data[j,k])/(maxBuck-minBuck))^p
+        
+        # add to tempMatchDist
+        tempMatchDist = append(tempMatchDist,result)
+      }
+      # removing temporary bucket column
+      feature_data$buck <- NULL
+    }
+    # compute the expression
+    overallNumSim = sum(tempMatchDist)^(1/p)
+    # Calculate CatSim using overlap measure
+    opdist <- c()
+    if(feature_data[rownum,10]==feature_data[j,10])
+    {
+      opdist = append(opdist,1)
+    }
+    if(feature_data[rownum,11]==feature_data[j,11])
+    {
+      opdist = append(opdist,1) 
+    }
+    overallCatSim = sum(opdist)
+    overallSimilarity = c(feature_data[rownum,1], feature_data[j,1], overallNumSim, overallCatSim)
+    overallSimilarities = append(overallSimilarities, overallSimilarity)
+  }
+  # sorting and printing
+   #Output in the form of Ticker1, Ticker 2 and Similarity
+  m1 <- matrix(overallSimilarities, ncol=4, byrow=TRUE)
+  df <- as.data.frame(m1, stringsAsFactors=FALSE)
+  #print(df)
+  df <- na.omit(df)
+  df$V3 <- as.numeric(as.character(df$V3))
+  df$V4 <- as.numeric(as.character(df$V4))
+  
+  sigmaNum = sd(df$V3)
+  sigmaCat = sd(df$V4)
+  #calculating the sigmaNum and sigmaCat values for quantitative and categorical features
+  df$V5 <- (df$V3 * (1/sigmaNum) * lmda) + (df$V4 * (1/sigmaCat) * (1-lmda))
+  df$V3<-NULL
+  df$V4<-NULL
+  df$V5 <- as.numeric(as.character(df$V5))
+  dfSorted <-df[order(-df$V5),]
+  # print(dfSorted)
+  names(dfSorted)<- c("Ticker1","Ticker2","Similarity")
+  print(head(dfSorted, 10))
+  print(tail(dfSorted, 10))
+}
+#Calculating overall normalized similarity by taking row=1, p=2 and lambda value as 0.25
+overallSimNormalized(Finaldata,1,2,0.25)
+
+```
